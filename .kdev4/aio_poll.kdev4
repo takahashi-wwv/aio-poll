@@ -1,0 +1,25 @@
+[CMake]
+Build Directory Count=1
+Current Build Directory Index-Host System=0
+
+[CMake][CMake Build Directory 0]
+Build Directory Path=/home/takahashi_wwv/Workspace/aio_poll/build
+Build Type=Debug
+CMake Binary=/usr/bin/cmake
+CMake Executable=/usr/bin/cmake
+Environment Profile=
+Extra Arguments=
+Install Directory=
+Runtime=Host System
+
+[Project]
+VersionControlSupport=
+
+[SourceFormatter]
+UseDefault=false
+text/x-c++hdr=kdevcustomscript||GNU_indent_GNU
+text/x-c++src=kdevcustomscript||GNU_indent_GNU
+text/x-chdr=kdevcustomscript||GNU_indent_orig
+text/x-csharp=kdevcustomscript||GNU_indent_GNU
+text/x-csrc=kdevcustomscript||GNU_indent_orig
+text/x-java=kdevcustomscript||GNU_indent_GNU
