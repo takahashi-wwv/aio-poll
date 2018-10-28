@@ -163,7 +163,7 @@ main()
                     perror("accept");
                     continue;
                 }
-                if (connections_cnt) {
+                if (connections_cnt == aio_max_conns) {
                     fprintf(stderr, "Rejected incoming connections %s:%u due to insufficient resources\n",
                         inet_ntoa(inetaddr.sin_addr), ntohs(inetaddr.sin_port));
                     /* Try to be more peaceful in such case. */
