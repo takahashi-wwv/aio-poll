@@ -15,7 +15,7 @@ const char *addr_to_listen = "127.0.0.1";
 /* Port to listen on */
 int port_to_listen = 3333;
 /* How many connections should an AIO context handle */
-int aio_max_conns = 50;
+int aio_max_conns = 2;
 /* Length of listen queue */
 int listen_qlen = 5;
 /* Read/Write buffer size */
@@ -156,56 +156,60 @@ main()
                 socklen_t addrlen = sizeof(struct sockaddr_in);
                 int acceptfd;
 
-                /* Accept the new incoming connection */
-                acceptfd = accept(listenfd, (struct sockaddr *)&inetaddr,
-                    &addrlen);
-                if (acceptfd < 0) {
-                    perror("accept");
-                    continue;
-                }
-                if (connections_cnt == aio_max_conns) {
-                    fprintf(stderr, "Rejected incoming connections %s:%u due to insufficient resources\n",
+                do {
+                    /* Accept the new incoming connection */
+                    acceptfd = accept(listenfd, (struct sockaddr *)&inetaddr,
+                        &addrlen);
+                    if (acceptfd < 0) {
+                        perror("accept");
+                        break;
+                    }
+                    if (connections_cnt == aio_max_conns) {
+                        fprintf(stderr, "Rejected incoming connections %s:%u due to insufficient resources\n",
+                            inet_ntoa(inetaddr.sin_addr),
+                            ntohs(inetaddr.sin_port));
+                        /* Try to be more peaceful in such case. */
+                        shutdown(acceptfd, SHUT_RDWR);
+                        close(acceptfd);
+                        break;
+                    }
+                    fprintf(stderr, "Accepted incoming connections %s:%u\n",
                         inet_ntoa(inetaddr.sin_addr), ntohs(inetaddr.sin_port));
-                    /* Try to be more peaceful in such case. */
-                    shutdown(acceptfd, SHUT_RDWR);
-                    close(acceptfd);
-                    continue;
-                }
-                fprintf(stderr, "Accepted incoming connections %s:%u\n",
-                    inet_ntoa(inetaddr.sin_addr), ntohs(inetaddr.sin_port));
 
-                /* Set the socket to non-blocking */
-                flags = fcntl(acceptfd, F_GETFL, 0);
-                if (flags == -1) {
-                    perror("fcntl");
-                    close(acceptfd);
-                    continue;
-                }
-                if (fcntl(acceptfd, F_SETFL, flags|O_NONBLOCK) == -1) {
-                    perror("fcntl");
-                    close(acceptfd);
-                    continue;
-                }
+                    /* Set the socket to non-blocking */
+                    flags = fcntl(acceptfd, F_GETFL, 0);
+                    if (flags == -1) {
+                        perror("fcntl");
+                        close(acceptfd);
+                        break;
+                    }
+                    if (fcntl(acceptfd, F_SETFL, flags|O_NONBLOCK) == -1) {
+                        perror("fcntl");
+                        close(acceptfd);
+                        break;
+                    }
 
-                /* Now we get a new connection context for the connection */
-                conn = new_connection(acceptfd, buffer_size);
-                if (conn == NULL) {
-                    fprintf(stderr, "Insufficient memory for setting connection for %s:%u\n",
-                        inet_ntoa(inetaddr.sin_addr), ntohs(inetaddr.sin_port));
-                    close(acceptfd);
-                    continue;
-                }
+                    /* Now we get a new connection context for the connection */
+                    conn = new_connection(acceptfd, buffer_size);
+                    if (conn == NULL) {
+                        fprintf(stderr, "Insufficient memory for setting connection for %s:%u\n",
+                            inet_ntoa(inetaddr.sin_addr),
+                            ntohs(inetaddr.sin_port));
+                        close(acceptfd);
+                        break;
+                    }
 
-                /* Submit the first poll request to the AIO context for this
-                 * connection */
-                io_prep_poll(&conn->polliocb, acceptfd, POLLIN);
-                iocbp[0] = &conn->polliocb;
-                while (io_submit(aioctx, 1, iocbp) < 0) {
-                    perror("io_submit");
-                    fprintf(stderr, "AIO submission for listen fd %d failed, now trying to throttle...\n",
-                        acceptfd);
-                    sleep(1);
-                }
+                    /* Submit the first poll request to the AIO context for this
+                    * connection */
+                    io_prep_poll(&conn->polliocb, acceptfd, POLLIN);
+                    iocbp[0] = &conn->polliocb;
+                    while (io_submit(aioctx, 1, iocbp) < 0) {
+                        perror("io_submit");
+                        fprintf(stderr, "AIO submission for listen fd %d failed, now trying to throttle...\n",
+                            acceptfd);
+                        sleep(1);
+                    }
+                } while (0);
 
                 /* Submit the next poll request to the AIO context for the
                  * listen fd due to the oneshot nature of the AIO poll
